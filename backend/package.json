@@ -1,0 +1,15 @@
+{
+    "name": "smart-gate-controller-backend",
+    "version": "0.1.0",
+    "description": "Local backend for Smart Gate Controller",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "dev": "nodemon index.js"
+    },
+    "dependencies": {
+        "cors": "^2.8.5",
+        "express": "^4.18.4",
+        "uuid": "^9.0.0"
+    }
+}
