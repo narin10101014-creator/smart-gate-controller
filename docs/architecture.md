@@ -1,25 +1,67 @@
 # Smart Gate Controller Architecture
 
 ## Overview
-This project is designed as a local-first smart gate controller with a web-based dashboard and an ESP32 firmware backend.
+This project is a local-first smart gate controller: a Vue web dashboard talks to an
+Express backend, which in turn coordinates with ESP32-based firmware that drives the
+physical gate motor. The system is designed to run entirely on a local network, with
+the backend as the single source of truth for gate state, users, and activity logs.
 
-The architecture is split into:
-- `backend/` — local backend API for authentication, control commands, and logging
-- `firmware/` — ESP32 firmware with Wi-Fi and REST API integration
-- `web/` — mobile-friendly web application for login and gate control
-- `docs/` — documentation and architecture notes
-- `hardware/` — hardware design files and wiring notes
-- `pcb/` — PCB design files
+## Repository structure
+- `backend/` — Express REST API: authentication, gate control, activity logs, and the
+  polling endpoints the firmware uses
+- `web/` — Vue 3 web dashboard for login and gate control
+- `firmware/` — PlatformIO project for the ESP32 (Arduino Nano ESP32) that drives the
+  gate motor and reports its position back to the backend
+- `docs/` — architecture, API, and hardware documentation
 
-## Goals for MVP
-- web login/logout flow for two users
-- secure control button to open/close gate
-- backend that manages users, sessions, logs, and ESP32 commands
-- local network deployment now, cloud-ready later
+## Components
 
-## Future extension
-- add cloud sync and remote access
-- add persistent database in backend
-- add OTA firmware updates for ESP32
-- add multiple gate controllers and access levels
-- add mobile PWA support for iOS and Android
+### Backend (`backend/`)
+Express app (CommonJS) holding all state in memory:
+- **Auth** — two seeded users (`owner`/`guest` roles), passwords hashed with bcrypt,
+  session tokens issued on login and required as a Bearer token on protected routes
+- **Gate control** — a `gateState` object (`status`, `updatedAt`) representing the last
+  *known real* position of the gate, plus a single-slot pending command queue that the
+  firmware polls and consumes
+- **Logs** — an in-memory, capped activity log (logins, control requests, device
+  reports)
+
+State does not persist across a backend restart — see `docs/api.md` for the exact
+endpoint contracts and `firmware/README.md` for how the firmware integrates with them.
+
+### Web dashboard (`web/`)
+Vue 3 + Vite + Vue Router + Pinia, talking to the backend over `fetch`. Two views:
+a login screen and a dashboard showing gate status, open/close/toggle controls, and
+recent activity, polling the backend every 5 seconds to stay in sync with the real
+gate position.
+
+### Firmware (`firmware/`)
+PlatformIO project targeting the Arduino Nano ESP32 (ESP32-S3), split into single
+responsibility modules (WiFi connection, backend HTTP client, motor driver, and the
+gate's state machine). It polls the backend for pending open/close commands, drives
+the motor through an L298N H-bridge, and reports the real position back once a reed
+switch confirms the gate reached its limit. Full detail in `firmware/README.md`.
+
+## Communication flow
+1. A logged-in user clicks Open/Close/Toggle on the web dashboard →
+   `POST /api/control` on the backend, which queues a pending command (it does not
+   move anything itself).
+2. The firmware polls `GET /api/esp32/command` on an interval; when a command is
+   waiting, it drives the motor in that direction.
+3. The firmware watches the relevant reed switch and, once triggered, stops the motor
+   and calls `POST /api/esp32/report` with the real position.
+4. The web dashboard's periodic `GET /api/status` poll picks up the updated position
+   and reflects it in the UI.
+
+This means gate status changes are asynchronous: clicking a button queues a request,
+but the dashboard only shows the new status once the firmware confirms the physical
+move completed.
+
+## Current limitations
+- All backend state (users, sessions, logs, gate state, pending command) is in-memory
+  and is lost on restart
+- `POST /api/esp32/report` and `GET /api/esp32/command` are not authenticated — any
+  device reachable on the network can report a status or is expected to poll commands
+- If the firmware's safety cutoff fires before a reed switch triggers, the gate's real
+  position becomes unknown until the next successful move; no separate "unknown" state
+  exists in the backend today
