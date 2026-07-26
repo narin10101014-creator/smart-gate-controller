@@ -1,4 +1,4 @@
-const { gateState, addLog } = require('../models/store');
+const { gateState, addLog, setPendingCommand, takePendingCommand } = require('../models/store');
 
 function getStatus(req, res) {
     res.json({ gate: gateState });
@@ -10,15 +10,18 @@ function controlGate(req, res) {
         return res.status(400).json({ message: 'Invalid action' });
     }
 
-    if (action === 'toggle') {
-        gateState.status = gateState.status === 'open' ? 'closed' : 'open';
-    } else {
-        gateState.status = action === 'open' ? 'open' : 'closed';
-    }
-    gateState.updatedAt = new Date().toISOString();
+    const direction = action === 'toggle'
+        ? (gateState.status === 'open' ? 'close' : 'open')
+        : action;
 
-    addLog({ type: 'control', user: req.user.username, message: `Gate ${gateState.status}` });
+    setPendingCommand(direction);
+
+    addLog({ type: 'control', user: req.user.username, message: `Gate ${direction} requested` });
     res.json({ gate: gateState });
+}
+
+function getPendingCommand(req, res) {
+    res.json({ command: takePendingCommand() });
 }
 
 function reportStatus(req, res) {
@@ -33,4 +36,4 @@ function reportStatus(req, res) {
     res.json({ gate: gateState });
 }
 
-module.exports = { getStatus, controlGate, reportStatus };
+module.exports = { getStatus, controlGate, getPendingCommand, reportStatus };

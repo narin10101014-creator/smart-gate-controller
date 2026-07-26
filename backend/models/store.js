@@ -32,10 +32,24 @@ function addLog(entry) {
     if (logs.length > 100) logs.length = 100;
 }
 
+let pendingCommand = null; // { action: 'open' | 'close', requestedAt } | null
+
+function setPendingCommand(action) {
+    pendingCommand = { action, requestedAt: new Date().toISOString() };
+}
+
+function takePendingCommand() {
+    const command = pendingCommand;
+    pendingCommand = null;
+    return command;
+}
+
 module.exports = {
     gateState,
     users,
     sessions,
     logs,
     addLog,
+    setPendingCommand,
+    takePendingCommand,
 };

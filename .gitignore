@@ -5,6 +5,14 @@ web/node_modules/
 
 # Ignore build output
 web/dist/
+firmware/.pio/
+
+# Ignore firmware secrets (real WiFi/backend credentials)
+firmware/include/secrets.h
+
+# Ignore machine-specific editor IntelliSense config (auto-generated, has local absolute paths)
+.vscode/
+firmware/.vscode/
 
 # Ignore logs
 npm-debug.log*
