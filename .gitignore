@@ -1,6 +1,10 @@
 # Ignore dependency folders
 node_modules/
 backend/node_modules/
+web/node_modules/
+
+# Ignore build output
+web/dist/
 
 # Ignore logs
 npm-debug.log*
