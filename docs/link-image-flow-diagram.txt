@@ -1,0 +1,2 @@
+Frontend ↔ Backend flow -> https://claude.ai/code/artifact/18d82042-befe-4399-a263-7ec6e6d30de1?org=36625b7b-324c-4b6a-8618-42d3855e6000
+ESP32 gate motor wiring -> https://claude.ai/code/artifact/2c09069c-891d-444e-ad88-2bd13d4d169d?via=auto_preview
