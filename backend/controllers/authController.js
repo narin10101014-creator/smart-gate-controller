@@ -1,10 +1,11 @@
+const bcrypt = require('bcryptjs');
 const { users, sessions, addLog } = require('../models/store');
 const { v4: uuidv4 } = require('uuid');
 
-function login(req, res) {
+async function login(req, res) {
     const { username, password } = req.body;
-    const user = users.find(u => u.username === username && u.password === password);
-    if (!user) {
+    const user = users.find(u => u.username === username);
+    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
         return res.status(401).json({ message: 'Invalid credentials' });
     }
 
