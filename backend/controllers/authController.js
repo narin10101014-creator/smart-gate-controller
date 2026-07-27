@@ -1,6 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { users, sessions, addLog } = require('../models/store');
-const { v4: uuidv4 } = require('uuid');
+const { users, addLog, createSession, deleteSession } = require('../models/store');
 
 async function login(req, res) {
     const { username, password } = req.body;
@@ -9,8 +8,7 @@ async function login(req, res) {
         return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const token = uuidv4();
-    sessions[token] = { id: user.id, username: user.username, role: user.role };
+    const token = createSession(user);
     addLog({ type: 'login', user: user.username, message: 'User logged in' });
     res.json({ token, user: { username: user.username, role: user.role } });
 }
@@ -18,7 +16,7 @@ async function login(req, res) {
 function logout(req, res) {
     const token = req.headers['authorization'].slice(7);
     addLog({ type: 'logout', user: req.user.username, message: 'User logged out' });
-    delete sessions[token];
+    deleteSession(token);
     res.json({ message: 'Logged out' });
 }
 

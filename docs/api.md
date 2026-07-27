@@ -16,8 +16,11 @@ Passwords are hashed with bcrypt; there is no functional difference between `own
 and `guest` today — both roles have identical permissions.
 
 Login returns an opaque session token that must be sent as `Authorization: Bearer <token>`
-on every protected endpoint below. Sessions are held in memory only: they do not expire
-on their own, but are all invalidated when the backend process restarts.
+on every protected endpoint below. Sessions are held in memory only, so they are all
+invalidated when the backend process restarts. They also expire on their own after
+`SESSION_TTL` (default `24h`, format like `20s`/`30m`/`24h`, see `backend/.env.example`) — a request with an
+expired token gets `401 { "message": "Unauthorized" }`, same as an invalid one, and
+the client must log in again.
 
 ### `POST /api/login`
 No auth required.

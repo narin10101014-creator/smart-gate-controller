@@ -1,12 +1,13 @@
-const { sessions } = require('../models/store');
+const { getSession } = require('../models/store');
 
 function requireAuth(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token || !sessions[token]) {
+    const session = token ? getSession(token) : null;
+    if (!session) {
         return res.status(401).json({ message: 'Unauthorized' });
     }
-    req.user = sessions[token];
+    req.user = session;
     next();
 }
 
