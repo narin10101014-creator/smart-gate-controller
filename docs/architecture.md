@@ -39,7 +39,7 @@ gate position.
 PlatformIO project targeting the Arduino Nano ESP32 (ESP32-S3), split into single
 responsibility modules (WiFi connection, backend HTTP client, motor driver, and the
 gate's state machine). It polls the backend for pending open/close commands, drives
-the motor through an L298N H-bridge, and reports the real position back once a reed
+the motor through a BTS7960 motor driver, and reports the real position back once a reed
 switch confirms the gate reached its limit. Full detail in `firmware/README.md`.
 
 ## Communication flow

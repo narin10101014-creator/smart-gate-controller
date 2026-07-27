@@ -6,10 +6,11 @@
 // GPIO numbers, since Arduino Nano ESP32 remaps Dx to different underlying
 // GPIOs depending on the active pin-numbering mode (Tools > Pin Numbering).
 
-// Motor driver pins (L298N)
-inline constexpr int PIN_MOTOR_IN1 = D2; // direction: open
-inline constexpr int PIN_MOTOR_IN2 = D3; // direction: close
-inline constexpr int PIN_MOTOR_ENA = D4; // PWM enable/speed
+// Motor driver pins (BTS7960 / IBT-2). R_EN and L_EN are wired directly to
+// VCC on the module, not driven by the MCU - only the two PWM inputs are
+// controlled here.
+inline constexpr int PIN_MOTOR_RPWM = D2; // direction: open
+inline constexpr int PIN_MOTOR_LPWM = D3; // direction: close
 
 // Position sensing (magnetic reed switches, INPUT_PULLUP, LOW = triggered)
 inline constexpr int PIN_REED_OPEN = D5;

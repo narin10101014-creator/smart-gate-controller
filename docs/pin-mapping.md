@@ -4,16 +4,16 @@ Pin assignments for the firmware in `firmware/`, verified directly against the
 installed PlatformIO board package (`framework-arduinoespressif32`, variant
 `arduino_nano_nora`) rather than assumed from the product photo alone.
 
-## Motor driver (L298N)
+## Motor driver (BTS7960 / IBT-2)
 
 | Signal | Arduino Pin | GPIO | Direction | Description |
 |--------|-------------|------|-----------|-------------|
-| `PIN_MOTOR_IN1` | `D2` | GPIO5 | Output | L298N `IN1` — direction control, HIGH to open |
-| `PIN_MOTOR_IN2` | `D3` | GPIO6 | Output | L298N `IN2` — direction control, HIGH to close |
-| `PIN_MOTOR_ENA` | `D4` | GPIO7 | Output (PWM) | L298N `ENA` — motor enable/speed |
+| `PIN_MOTOR_RPWM` | `D2` | GPIO5 | Output (PWM) | BTS7960 `RPWM` — direction + speed, drives open |
+| `PIN_MOTOR_LPWM` | `D3` | GPIO6 | Output (PWM) | BTS7960 `LPWM` — direction + speed, drives close |
 
-Firmware guarantees `IN1`/`IN2` are never driven HIGH at the same time
-(`firmware/src/motor_control.cpp`).
+`R_EN` and `L_EN` are wired directly to the module's `VCC` (not MCU-driven), so no
+GPIO is needed for them. Firmware guarantees `RPWM`/`LPWM` are never both active at
+the same time (`firmware/src/motor_control.cpp`).
 
 ## Reed switches
 
@@ -41,8 +41,9 @@ current firmware, but they are not available for general I/O either.
 | `LED_GREEN` | — | GPIO0 | Output | Onboard RGB LED, green channel — also an ESP32-S3 boot strapping pin |
 | `LED_BLUE` / `RTS` | — | GPIO45 | Output | Onboard RGB LED, blue channel |
 
-`D7`-`D9` and `A0`-`A3`, `A6`-`A7` are broken out on the header and unused by this
-firmware, available for future expansion.
+`D4`, `D7`-`D9`, and `A0`-`A3`, `A6`-`A7` are broken out on the header and unused by
+this firmware, available for future expansion. `D4` was used for the L298N's `ENA`
+pin in an earlier revision of this design; it is unused with the current BTS7960 driver.
 
 ## UART
 
@@ -85,7 +86,7 @@ pin-numbering modes, controlled by build-time macros
 - **`BOARD_USES_HW_GPIO_NUMBERS`** — pin remapping is disabled and `Dx`/`Ax` names
   resolve directly to real GPIO numbers instead (e.g. `D2 == 5` directly).
 
-Because the active mode is a build-time setting, writing `PIN_MOTOR_IN1 = D2` in
+Because the active mode is a build-time setting, writing `PIN_MOTOR_RPWM = D2` in
 `config.h` resolves correctly under either mode — a raw literal like `26` would not.
 The "GPIO" column in the tables above reflects the real silicon pin regardless of
 mode, verified directly from `TO_GPIO_NUMBER[]` in

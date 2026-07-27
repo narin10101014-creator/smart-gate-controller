@@ -2,8 +2,8 @@
 
 PlatformIO project for the **Arduino Nano ESP32** (ESP32-S3, via the u-blox
 NORA-W106 module). Connects to WiFi, polls the backend for open/close commands,
-drives a DC gate motor through an L298N H-bridge, and reports the real position
-back once a reed switch confirms the gate reached its limit.
+drives a DC gate motor through a BTS7960 (IBT-2) motor driver, and reports the real
+position back once a reed switch confirms the gate reached its limit.
 
 See `docs/api.md` for the exact backend endpoints this firmware calls, and
 `docs/architecture.md` for how it fits into the rest of the system.
@@ -17,7 +17,7 @@ Each module has one responsibility and no knowledge of modules above it in this 
 | `config.h` | Pin numbers and timing constants | — (data only, no functions) |
 | `wifi_manager` | Non-blocking WiFi connect/reconnect | The backend API, the gate |
 | `api_client` | HTTP calls to the backend, translated to plain enums | Motors, pins, the state machine |
-| `motor_control` | Drives the L298N pins, guarantees `IN1`/`IN2` are never both `HIGH` | Reed switches, timing, the network |
+| `motor_control` | Drives the BTS7960 pins (`RPWM`/`LPWM`), guarantees only one channel is ever active | Reed switches, timing, the network |
 | `gate_state` | The state machine: polls for commands, watches reed switches, enforces the safety cutoff | — (this is the orchestrator) |
 | `main.cpp` | Calls `WifiManager::begin/update` and `GateState::begin/update` | Everything else — no other logic lives here |
 
@@ -34,11 +34,12 @@ names stay correct regardless of that setting.
 
 | Constant | Pin | Purpose |
 |---|---|---|
-| `PIN_MOTOR_IN1` | `D2` | L298N IN1 — direction: open |
-| `PIN_MOTOR_IN2` | `D3` | L298N IN2 — direction: close |
-| `PIN_MOTOR_ENA` | `D4` | L298N ENA — PWM enable/speed |
+| `PIN_MOTOR_RPWM` | `D2` | BTS7960 RPWM — direction + speed, drives open |
+| `PIN_MOTOR_LPWM` | `D3` | BTS7960 LPWM — direction + speed, drives close |
 | `PIN_REED_OPEN` | `D5` | Reed switch, open limit (`INPUT_PULLUP`, LOW = triggered) |
 | `PIN_REED_CLOSED` | `D6` | Reed switch, closed limit (`INPUT_PULLUP`, LOW = triggered) |
+
+`R_EN`/`L_EN` on the BTS7960 are wired directly to `VCC`, not to any GPIO.
 
 Full wiring diagram, power requirements, and safety notes are in `docs/hardware.md`.
 

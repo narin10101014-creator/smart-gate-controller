@@ -1,7 +1,7 @@
 #pragma once
 
-// Owns the L298N pins. Guarantees IN1/IN2 are never both HIGH at once. No
-// knowledge of reed switches, timing, or the network.
+// Owns the BTS7960 driver pins (RPWM/LPWM). Guarantees only one channel is
+// ever active at once. No knowledge of reed switches, timing, or the network.
 namespace MotorControl {
 
 // Configures pin modes and ensures the motor starts stopped. Call once from setup().

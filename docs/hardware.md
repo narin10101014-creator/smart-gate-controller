@@ -9,7 +9,7 @@ firmware in `firmware/`. Pin constants referenced here are defined in
 | Part | Notes | Qty |
 |---|---|---|
 | Arduino Nano ESP32 | ESP32-S3 via u-blox NORA-W106 | 1 |
-| L298N motor driver module | Dual H-bridge, built-in flyback diodes | 1 |
+| BTS7960 motor driver module (IBT-2) | Dual MOSFET half-bridge, high current, low voltage drop | 1 |
 | DC gate motor | 12V or 24V geared motor, reversible | 1 |
 | Magnetic reed switch | Normally-open, one per travel limit | 2 |
 | Power supply | Sized to the motor's stall current, matches its voltage | 1 |
@@ -20,48 +20,50 @@ firmware in `firmware/`. Pin constants referenced here are defined in
 graph LR
     PSU["Motor power supply\n(12/24V)"]
     NANO["Arduino Nano ESP32"]
-    L298["L298N H-bridge"]
+    BTS["BTS7960 (IBT-2)"]
     MOTOR["DC gate motor"]
     ROPEN["Reed switch\nopen limit"]
     RCLOSE["Reed switch\nclosed limit"]
 
-    PSU -->|V+ / GND| L298
-    L298 -->|OUT1 / OUT2| MOTOR
+    PSU -->|"B+ / B- (motor power)"| BTS
+    BTS -->|M+ / M-| MOTOR
 
-    NANO -->|"D2 -> IN1"| L298
-    NANO -->|"D3 -> IN2"| L298
-    NANO -->|"D4 -> ENA (PWM)"| L298
+    NANO -->|"5V -> VCC, R_EN, L_EN"| BTS
+    NANO -->|"D2 -> RPWM"| BTS
+    NANO -->|"D3 -> LPWM"| BTS
 
     ROPEN -->|"D5 (INPUT_PULLUP)"| NANO
     RCLOSE -->|"D6 (INPUT_PULLUP)"| NANO
 
-    NANO -.->|GND| L298
+    NANO -.->|GND| BTS
 ```
 
 ## Pin mapping (Arduino Nano ESP32)
 
 | Nano ESP32 pin | Connects to | Purpose |
 |---|---|---|
-| `D2` | L298N `IN1` | Direction control — drive HIGH to open |
-| `D3` | L298N `IN2` | Direction control — drive HIGH to close |
-| `D4` | L298N `ENA` | PWM enable/speed |
+| `D2` | BTS7960 `RPWM` | Direction + speed — PWM to open |
+| `D3` | BTS7960 `LPWM` | Direction + speed — PWM to close |
+| `5V`/`VBUS` | BTS7960 `VCC`, `R_EN`, `L_EN` | Logic supply; both enables tied directly to VCC (not MCU-driven) |
 | `D5` | Reed switch — open limit | `INPUT_PULLUP`; reads LOW when fully open |
 | `D6` | Reed switch — closed limit | `INPUT_PULLUP`; reads LOW when fully closed |
-| `GND` | L298N `GND` + power supply `GND` | Common ground — required |
+| `GND` | BTS7960 `GND` + power supply `GND` | Common ground — required |
 
-Pins are referenced by their Arduino symbolic names (`D2`-`D6`), not raw GPIO numbers
-— see `firmware/README.md` for why.
+Pins are referenced by their Arduino symbolic names (`D2`/`D3`/`D5`/`D6`), not raw
+GPIO numbers — see `firmware/README.md` for why.
 
-## L298N connections
+## BTS7960 connections
 
-- `IN1`/`IN2` — direction control from the Nano ESP32. Firmware guarantees these are
-  never both `HIGH` at the same time (see `motor_control` in `firmware/README.md`).
-- `ENA` — PWM enable/speed, driven by the Nano ESP32.
-- `OUT1`/`OUT2` — to the DC motor terminals.
-- `12V`/`GND` (motor supply input) — from the power supply, sized to the motor's
+- `RPWM`/`LPWM` — direction and speed control from the Nano ESP32. Firmware
+  guarantees these are never both active at the same time (see `motor_control` in
+  `firmware/README.md`).
+- `R_EN`/`L_EN` — tied directly to `VCC` (not driven by the Nano ESP32), so both
+  channels are always enabled and only `RPWM`/`LPWM` gate whether they drive.
+- `VCC`/`GND` — 5V logic supply for the module's onboard gate-driver ICs, kept
+  separate from the motor's high-current `B+` rail (see Power requirements below).
+- `M+`/`M-` — to the DC motor terminals.
+- `B+`/`B-` (motor power supply input) — from the power supply, sized to the motor's
   voltage and stall current.
-- L298N's onboard 5V logic regulator is **not used** here — do not connect it to the
-  Nano ESP32's power pins (see Power requirements below).
 
 ## Reed switch wiring
 
@@ -70,7 +72,7 @@ pin configured `INPUT_PULLUP` in firmware — so the pin reads `HIGH` normally a
 `LOW` when the switch closes (magnet present, gate at that limit). No external
 pull-up resistor or debounce capacitor is required for `INPUT_PULLUP` to function,
 but a small ceramic capacitor (~100nF) across each switch to `GND` is recommended if
-wiring runs near the motor leads, to filter switching noise from the L298N.
+wiring runs near the motor leads, to filter switching noise from the BTS7960.
 
 ## Power requirements
 
@@ -82,25 +84,26 @@ wiring runs near the motor leads, to filter switching noise from the L298N.
   12V or 24V motor supply's raw voltage directly into `VIN` may exceed that limit —
   if in doubt, power the Nano ESP32 from a separate, regulated low-voltage supply
   (5–9V) rather than the same rail as the motor.
-- The L298N's motor-side supply (`12V`/`GND` input) is separate from the Nano ESP32's
+- The BTS7960's motor-side supply (`B+`/`B-` input) is separate from the Nano ESP32's
   power and should come directly from the power supply sized to the motor.
-- `GND` must be common between the Nano ESP32, the L298N, and the power supply.
+- `GND` must be common between the Nano ESP32, the BTS7960, and the power supply.
 
 Sources: [Arduino Nano ESP32 Cheat Sheet](https://docs.arduino.cc/tutorials/nano-esp32/cheat-sheet/),
 [Arduino Forum — Nano ESP32-S3 minimum VIN voltage](https://forum.arduino.cc/t/arduino-nano-esp32-s3-minimum-vin-voltage-datasheet-question/1246320).
 
 ## Safety notes
 
-- **Never drive `IN1` and `IN2` HIGH at the same time.** Firmware already enforces
-  this in `motor_control` (see `firmware/README.md`) — do not bypass it with manual
-  pin writes elsewhere.
+- **Never drive `RPWM` and `LPWM` at the same time.** Firmware already enforces this
+  in `motor_control` (see `firmware/README.md`) — do not bypass it with manual pin
+  writes elsewhere.
 - **Trust the reed switches, not a timer.** The motor must stop the instant the
   matching reed switch triggers; the firmware's `MAX_TRAVEL_MS` cutoff is a fallback
   only, not the primary stop mechanism.
-- **Do not power the Nano ESP32 from the L298N's onboard 5V regulator** — it cannot
-  reliably supply the current spikes WiFi draws.
+- **Give the BTS7960's `VCC`/`R_EN`/`L_EN` a stable 5V logic supply, separate from
+  the motor's `B+` rail.** These pins power the onboard gate-driver ICs — do not
+  share this line with the high-current motor supply.
 - **Size the power supply to the motor's stall current**, not its running current — a
   gate pushing against an obstruction draws significantly more than its normal
   running current.
-- **Add an inline fuse** between the power supply and the L298N, rated to the
+- **Add an inline fuse** between the power supply and the BTS7960, rated to the
   supply's expected current, to protect against a jammed gate or wiring fault.

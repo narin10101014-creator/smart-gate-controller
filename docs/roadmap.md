@@ -83,11 +83,12 @@ real motor and reed switches.
   ESP32's actual board package rather than assumed
 
 **Remaining work:**
-- Physical assembly of the L298N, motor, reed switches, and power supply
-- Confirming the safety notes in `docs/hardware.md` (fusing, common ground, L298N
-  regulator jumper) are followed in the physical build
+- Physical assembly of the BTS7960, motor, reed switches, and power supply
+- Confirming the safety notes in `docs/hardware.md` (fusing, common ground, keeping
+  the BTS7960's logic `VCC` separate from the motor's `B+` rail) are followed in the
+  physical build
 
-**Dependencies:** Physical components (Nano ESP32 board, L298N module, gate motor,
+**Dependencies:** Physical components (Nano ESP32 board, BTS7960 module, gate motor,
 reed switches, power supply).
 
 **Risks:** Wiring mistakes are the primary risk category here — `docs/hardware.md`'s
