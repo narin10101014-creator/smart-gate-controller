@@ -19,12 +19,19 @@ body {
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--color-bg);
   color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .container {
   max-width: 480px;
   margin: 0 auto;
   padding: var(--spacing);
+  /* iPhone notch / home-indicator safe areas (requires viewport-fit=cover) */
+  padding-top: max(var(--spacing), env(safe-area-inset-top));
+  padding-bottom: max(var(--spacing), env(safe-area-inset-bottom));
+  padding-left: max(var(--spacing), env(safe-area-inset-left));
+  padding-right: max(var(--spacing), env(safe-area-inset-right));
 }
 
 .card {
@@ -55,6 +62,8 @@ body {
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .btn-primary {
@@ -83,6 +92,8 @@ input {
   background: var(--color-bg);
   color: var(--color-text);
   width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 label {
@@ -124,15 +135,17 @@ label {
 }
 
 .controls {
+  /* margin-based spacing instead of flex `gap` - gap in flex containers
+     isn't supported until Safari 14.1 (iOS 14.0-14.4 would silently drop it) */
   display: flex;
-  gap: 8px;
-  margin-top: var(--spacing);
   flex-wrap: wrap;
+  margin: calc(var(--spacing) - 4px) -4px 0;
 }
 
 .controls .btn {
   flex: 1;
   min-width: 100px;
+  margin: 4px;
 }
 
 .log-list {
