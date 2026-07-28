@@ -40,6 +40,16 @@ Response `401` (wrong username or password):
 { "message": "Invalid credentials" }
 ```
 
+Response `429` (rate limited — default 5 requests per 15 minutes per IP, configurable
+via `LOGIN_RATE_LIMIT_MAX`/`LOGIN_RATE_LIMIT_WINDOW` in `backend/.env`, counts every
+attempt regardless of outcome):
+```json
+{ "message": "Too many login attempts. Please try again later." }
+```
+Includes a `Retry-After` header (seconds until the limit resets) — the web
+dashboard's login form reads this to show a countdown before re-enabling the submit
+button.
+
 ### `POST /api/logout`
 Requires `Authorization: Bearer <token>`.
 

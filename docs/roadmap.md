@@ -38,9 +38,12 @@ the web dashboard and firmware can both rely on.
 - `GET /api/esp32/command`, `POST /api/esp32/report` for firmware integration
 - Session expiry — tokens expire after `SESSION_TTL` (default `24h`, configurable via
   env var as e.g. `20s`/`30m`/`24h`), checked lazily on each request
+- Rate limiting on `/api/login` — default 5 requests per 15 minutes per IP,
+  configurable via `LOGIN_RATE_LIMIT_MAX`/`LOGIN_RATE_LIMIT_WINDOW`
+  (`express-rate-limit`), returns `429` with a `Retry-After` header the web
+  dashboard uses to show a countdown before the user can try again
 
 **Remaining work:**
-- Rate limiting on `/api/login`
 - Authentication on the ESP32 device endpoints (currently open to anything on the
   network)
 - Persistent storage (all state is in-memory and lost on restart)
@@ -157,6 +160,6 @@ gaps already tracked in Phase 1.
 **Dependencies:** Meaningful progress on Phases 1-4 (backend persistence and auth
 hardening, firmware reliability, confirmed hardware, and a hosted web dashboard).
 
-**Risks:** Releasing before the remaining Phase 1 security gaps (unauthenticated
-device endpoints, no rate limiting) are addressed would expose physical
-gate access to anyone who can reach the backend.
+**Risks:** Releasing before the remaining Phase 1 security gap (unauthenticated
+device endpoints) is addressed would expose physical gate access to anyone who can
+reach the backend.

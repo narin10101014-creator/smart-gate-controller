@@ -4,10 +4,11 @@ import { useAuthStore } from '../stores/auth';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, retryAfter) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.retryAfter = retryAfter; // seconds until retry is allowed, only set for 429
   }
 }
 
@@ -51,7 +52,9 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
   }
 
   if (!response.ok) {
-    throw new ApiError(data?.message || `Request failed (${response.status})`, response.status);
+    const retryAfterHeader = response.headers.get('Retry-After');
+    const retryAfter = retryAfterHeader ? Number(retryAfterHeader) : undefined;
+    throw new ApiError(data?.message || `Request failed (${response.status})`, response.status, retryAfter);
   }
 
   return data;

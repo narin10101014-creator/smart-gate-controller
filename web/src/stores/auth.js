@@ -9,6 +9,7 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem(TOKEN_KEY) || null);
   const user = ref(JSON.parse(localStorage.getItem(USER_KEY) || 'null'));
   const loginError = ref('');
+  const loginRetryAfter = ref(0); // seconds, > 0 only when rate limited
   const isLoggingIn = ref(false);
 
   const isAuthenticated = computed(() => !!token.value);
@@ -26,6 +27,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(username, password) {
     isLoggingIn.value = true;
     loginError.value = '';
+    loginRetryAfter.value = 0;
     try {
       const data = await api.login(username, password);
       token.value = data.token;
@@ -34,6 +36,9 @@ export const useAuthStore = defineStore('auth', () => {
       return true;
     } catch (err) {
       loginError.value = err instanceof ApiError ? err.message : 'Login failed';
+      if (err instanceof ApiError && err.retryAfter) {
+        loginRetryAfter.value = err.retryAfter;
+      }
       return false;
     } finally {
       isLoggingIn.value = false;
@@ -56,5 +61,5 @@ export const useAuthStore = defineStore('auth', () => {
     persist();
   }
 
-  return { token, user, loginError, isLoggingIn, isAuthenticated, login, logout, clearSession };
+  return { token, user, loginError, loginRetryAfter, isLoggingIn, isAuthenticated, login, logout, clearSession };
 });
