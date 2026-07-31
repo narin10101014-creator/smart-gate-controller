@@ -21,3 +21,6 @@ yarn-error.log*
 
 # Ignore local environment files
 .env
+
+# Ignore local SQLite database (contains real session tokens once running)
+backend/data/

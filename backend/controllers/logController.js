@@ -1,7 +1,7 @@
-const { logs } = require('../models/store');
+const { getLogs } = require('../models/store');
 
-function getLogs(req, res) {
-    res.json({ logs });
+function getLogsHandler(req, res) {
+    res.json({ logs: getLogs() });
 }
 
-module.exports = { getLogs };
+module.exports = { getLogs: getLogsHandler };
