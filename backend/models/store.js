@@ -23,8 +23,15 @@ const SESSION_TTL_SECONDS = Math.floor(SESSION_TTL_MS / 1000);
 // 'now'/'localtime' and the expiry comparison are all computed by SQLite
 // itself rather than formatted in JS, so there's a single source of truth
 // for "what time is it" and no risk of the JS/SQL formats drifting apart.
+//
+// OR REPLACE relies on the UNIQUE(user_id) constraint on sessions: if this
+// user already has a session row, SQLite deletes it and inserts this one in
+// the same atomic statement - i.e. at most one active session per user,
+// enforced by the DB itself rather than a separate SELECT+DELETE in JS.
+// Different users have different user_id values, so their sessions never
+// conflict with each other.
 const insertSession = db.prepare(`
-    INSERT INTO sessions (token, user_id, username, role, expires_at, created_at)
+    INSERT OR REPLACE INTO sessions (token, user_id, username, role, expires_at, created_at)
     VALUES (?, ?, ?, ?, datetime('now', 'localtime', '+' || ? || ' seconds'), datetime('now', 'localtime'))
 `);
 const selectSessionWithValidity = db.prepare(

@@ -87,12 +87,46 @@ function migrateIntegerTimestamps() {
     migration();
 }
 
+// One-time migration enforcing at most one session row per user_id, needed to
+// add the UNIQUE(user_id) constraint that the single-session-per-user policy
+// relies on (see store.js's `INSERT OR REPLACE`). Keeps only the most recently
+// created session per user - older ones are exactly the sessions the policy
+// says should already be gone. No-op if the table doesn't exist yet or the
+// constraint is already in place.
+function migrateSessionsUniquePerUser() {
+    const migration = db.transaction(() => {
+        const existing = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='sessions'").get();
+        if (existing && !/user_id TEXT NOT NULL UNIQUE/.test(existing.sql)) {
+            db.exec('ALTER TABLE sessions RENAME TO sessions_old_multi');
+            db.exec(`
+                CREATE TABLE sessions (
+                    token TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL UNIQUE,
+                    username TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            `);
+            db.exec(`
+                INSERT INTO sessions (token, user_id, username, role, expires_at, created_at)
+                SELECT token, user_id, username, role, expires_at, created_at
+                FROM sessions_old_multi s1
+                WHERE rowid = (SELECT MAX(rowid) FROM sessions_old_multi s2 WHERE s2.user_id = s1.user_id)
+            `);
+            db.exec('DROP TABLE sessions_old_multi');
+        }
+    });
+    migration();
+}
+
 migrateIntegerTimestamps();
+migrateSessionsUniquePerUser();
 
 db.exec(`
     CREATE TABLE IF NOT EXISTS sessions (
         token TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
+        user_id TEXT NOT NULL UNIQUE,
         username TEXT NOT NULL,
         role TEXT NOT NULL,
         expires_at TEXT NOT NULL,

@@ -16,11 +16,16 @@ Passwords are hashed with bcrypt; there is no functional difference between `own
 and `guest` today — both roles have identical permissions.
 
 Login returns an opaque session token that must be sent as `Authorization: Bearer <token>`
-on every protected endpoint below. Sessions are held in memory only, so they are all
-invalidated when the backend process restarts. They also expire on their own after
-`SESSION_TTL` (default `24h`, format like `20s`/`30m`/`24h`, see `backend/.env.example`) — a request with an
-expired token gets `401 { "message": "Unauthorized" }`, same as an invalid one, and
-the client must log in again.
+on every protected endpoint below. Sessions are persisted in SQLite (survive backend
+restarts) and expire on their own after `SESSION_TTL` (default `24h`, format like
+`20s`/`30m`/`24h`, see `backend/.env.example`) — a request with an expired token gets
+`401 { "message": "Unauthorized" }`, same as an invalid one, and the client must log in
+again. Expired sessions are removed lazily, on the next request that touches them.
+
+**Only one active session per user.** Logging in again as the same user immediately
+invalidates that user's previous token — any request made with it afterwards gets
+`401`. This does not affect other users: `admin` and `family` can be logged in at the
+same time, and logging in as one never invalidates the other's session.
 
 ### `POST /api/login`
 No auth required.

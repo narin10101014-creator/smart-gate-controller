@@ -17,17 +17,25 @@ the backend as the single source of truth for gate state, users, and activity lo
 ## Components
 
 ### Backend (`backend/`)
-Express app (CommonJS) holding all state in memory:
-- **Auth** — two seeded users (`owner`/`guest` roles), passwords hashed with bcrypt,
-  session tokens issued on login and required as a Bearer token on protected routes
-- **Gate control** — a `gateState` object (`status`, `updatedAt`) representing the last
-  *known real* position of the gate, plus a single-slot pending command queue that the
-  firmware polls and consumes
-- **Logs** — an in-memory, capped activity log (logins, control requests, device
-  reports)
+Express app (CommonJS). Sessions, logs, and gate state are persisted in SQLite
+(`backend/models/db.js`, via `better-sqlite3`); only the pending command queue stays
+in memory:
+- **Auth** — two seeded users (`owner`/`guest` roles) recreated from env vars on every
+  boot (not stored in the DB), passwords hashed with bcrypt. Session tokens are issued
+  on login and required as a Bearer token on protected routes; the `sessions` table
+  enforces at most one active session per user (`UNIQUE(user_id)` + `INSERT OR
+  REPLACE`), so logging in again as the same user invalidates that user's previous
+  token without affecting other users' sessions
+- **Gate control** — a `gate_state` row (`status`, `updated_at`) representing the last
+  *known real* position of the gate, plus a single-slot in-memory pending command queue
+  that the firmware polls and consumes (not persisted — a restart just means the next
+  button click re-queues it)
+- **Logs** — a capped activity log (logins, control requests, device reports) stored in
+  SQLite, `GET /api/logs` returns the most recent 100
 
-State does not persist across a backend restart — see `docs/api.md` for the exact
-endpoint contracts and `firmware/README.md` for how the firmware integrates with them.
+The SQLite file lives on a Railway Volume in production, so sessions/logs/gate state
+survive backend restarts and redeploys — see `docs/api.md` for the exact endpoint
+contracts and `firmware/README.md` for how the firmware integrates with them.
 
 ### Web dashboard (`web/`)
 Vue 3 + Vite + Vue Router + Pinia, talking to the backend over `fetch`. Two views:
@@ -58,8 +66,9 @@ but the dashboard only shows the new status once the firmware confirms the physi
 move completed.
 
 ## Current limitations
-- All backend state (users, sessions, logs, gate state, pending command) is in-memory
-  and is lost on restart
+- The pending command queue is in-memory and is lost on restart (harmless — the user
+  just re-clicks the button); everything else (sessions, logs, gate state) persists in
+  SQLite across restarts
 - `POST /api/esp32/report` and `GET /api/esp32/command` are not authenticated — any
   device reachable on the network can report a status or is expected to poll commands
 - If the firmware's safety cutoff fires before a reed switch triggers, the gate's real

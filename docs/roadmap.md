@@ -7,12 +7,15 @@ started" rather than filled in speculatively.
 ## Current status
 
 **Completed**
-- Backend REST API: auth (bcrypt-hashed passwords, session tokens), gate
-  status/control, activity logs, ESP32 command/report endpoints
+- Backend REST API: auth (bcrypt-hashed passwords, session tokens, one active session
+  per user), gate status/control, activity logs, ESP32 command/report endpoints
+- Persistent storage: sessions, logs, and gate state in SQLite (survives backend
+  restarts; a Railway Volume backs the production deployment)
 - Web dashboard: login and gate control UI, polling-based status sync
 - Firmware: WiFi, backend HTTP client, motor driver, and gate state machine modules,
   compiling successfully for the Arduino Nano ESP32
 - Hardware wiring design and pin mapping, verified against the installed board package
+- Deployment: backend + web dashboard both live on Railway
 
 **In progress**
 - Physical hardware assembly and testing (wiring built in `docs/hardware.md`, not yet
@@ -22,7 +25,7 @@ started" rather than filled in speculatively.
 **Planned (not started — no implementation or design committed yet)**
 - Mobile app
 - OTA firmware updates
-- Production release (persistence, device authentication, deployment)
+- ESP32 device authentication
 
 ---
 
@@ -38,6 +41,9 @@ the web dashboard and firmware can both rely on.
 - `GET /api/esp32/command`, `POST /api/esp32/report` for firmware integration
 - Session expiry — tokens expire after `SESSION_TTL` (default `24h`, configurable via
   env var as e.g. `20s`/`30m`/`24h`), checked lazily on each request
+- Single-session-per-user — logging in again as the same user replaces that user's
+  previous session (`UNIQUE(user_id)` on the `sessions` table); other users' sessions
+  are unaffected
 - Rate limiting on `/api/login` — default 5 requests per 15 minutes per IP,
   configurable via `LOGIN_RATE_LIMIT_MAX`/`LOGIN_RATE_LIMIT_WINDOW`
   (`express-rate-limit`), returns `429` with a `Retry-After` header the web
@@ -46,12 +52,10 @@ the web dashboard and firmware can both rely on.
 **Remaining work:**
 - Authentication on the ESP32 device endpoints (currently open to anything on the
   network)
-- Persistent storage (all state is in-memory and lost on restart)
 
 **Dependencies:** None — self-contained Express app.
 
-**Risks:** In-memory state means any backend restart wipes sessions, logs, and gate
-status; unauthenticated device endpoints are a known attack surface once exposed
+**Risks:** Unauthenticated device endpoints are a known attack surface once exposed
 beyond a trusted local network.
 
 ## Phase 2 — Firmware
@@ -148,18 +152,16 @@ over-the-air update mechanism exists.
 ## Phase 7 — Production Release
 
 **Objectives:** Not yet defined beyond the gaps already identified elsewhere in this
-document. Today, every component runs in a local/dev configuration: in-memory backend
-state, dev servers for the web dashboard, and USB-only firmware updates.
+document. Firmware updates are still USB-only.
 
-**Completed work:** None specific to production readiness.
+**Completed work:** Backend and web dashboard are both deployed and live on Railway;
+backend state (sessions, logs, gate status) persists in SQLite on a Railway Volume.
 
-**Remaining work:** Persistent backend storage, device authentication, a real
-deployment target for the backend and web dashboard, and resolution of the security
-gaps already tracked in Phase 1.
+**Remaining work:** Device authentication, and resolution of the remaining security
+gap already tracked in Phase 1 (unauthenticated ESP32 endpoints).
 
-**Dependencies:** Meaningful progress on Phases 1-4 (backend persistence and auth
-hardening, firmware reliability, confirmed hardware, and a hosted web dashboard).
+**Dependencies:** Meaningful progress on Phases 1-4 (auth hardening, firmware
+reliability, confirmed hardware).
 
-**Risks:** Releasing before the remaining Phase 1 security gap (unauthenticated
-device endpoints) is addressed would expose physical gate access to anyone who can
-reach the backend.
+**Risks:** Running with the remaining Phase 1 security gap (unauthenticated
+device endpoints) exposes physical gate access to anyone who can reach the backend.
