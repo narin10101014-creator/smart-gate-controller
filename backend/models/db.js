@@ -1,7 +1,6 @@
 const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
-const { formatDateTime } = require('../utils/datetime');
 
 const DB_PATH = process.env.DB_PATH || './data/gate.db';
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
@@ -18,9 +17,10 @@ function columnType(table, column) {
 // One-time migration from the original schema (INTEGER epoch-ms timestamp
 // columns) to human-readable TEXT 'YYYY-MM-DD HH:MM:SS' columns. SQLite has
 // no ALTER COLUMN, so each table is rebuilt: rename the old table, create the
-// new TEXT-column version, copy every row across converting the timestamp
-// values, then drop the renamed original. No-op if the table doesn't exist
-// yet or is already on the TEXT schema.
+// new TEXT-column version, copy every row across in a single INSERT...SELECT
+// that converts the timestamp via SQLite's own datetime()/unixepoch modifiers
+// (no per-row JS date formatting), then drop the renamed original. No-op if
+// the table doesn't exist yet or is already on the TEXT schema.
 function migrateIntegerTimestamps() {
     const migration = db.transaction(() => {
         if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'").get()
@@ -36,15 +36,13 @@ function migrateIntegerTimestamps() {
                     created_at TEXT NOT NULL
                 )
             `);
-            const insert = db.prepare(
-                'INSERT INTO sessions (token, user_id, username, role, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-            );
-            for (const row of db.prepare('SELECT * FROM sessions_old_int').all()) {
-                insert.run(
-                    row.token, row.user_id, row.username, row.role,
-                    formatDateTime(new Date(row.expires_at)), formatDateTime(new Date(row.created_at))
-                );
-            }
+            db.exec(`
+                INSERT INTO sessions (token, user_id, username, role, expires_at, created_at)
+                SELECT token, user_id, username, role,
+                       datetime(expires_at / 1000, 'unixepoch', 'localtime'),
+                       datetime(created_at / 1000, 'unixepoch', 'localtime')
+                FROM sessions_old_int
+            `);
             db.exec('DROP TABLE sessions_old_int');
         }
 
@@ -60,12 +58,11 @@ function migrateIntegerTimestamps() {
                     message TEXT NOT NULL
                 )
             `);
-            const insert = db.prepare(
-                'INSERT INTO logs (id, timestamp, type, user, message) VALUES (?, ?, ?, ?, ?)'
-            );
-            for (const row of db.prepare('SELECT * FROM logs_old_int').all()) {
-                insert.run(row.id, formatDateTime(new Date(row.timestamp)), row.type, row.user, row.message);
-            }
+            db.exec(`
+                INSERT INTO logs (id, timestamp, type, user, message)
+                SELECT id, datetime(timestamp / 1000, 'unixepoch', 'localtime'), type, user, message
+                FROM logs_old_int
+            `);
             db.exec('DROP TABLE logs_old_int');
         }
 
@@ -79,10 +76,11 @@ function migrateIntegerTimestamps() {
                     updated_at TEXT NOT NULL
                 )
             `);
-            const insert = db.prepare('INSERT INTO gate_state (id, status, updated_at) VALUES (?, ?, ?)');
-            for (const row of db.prepare('SELECT * FROM gate_state_old_int').all()) {
-                insert.run(row.id, row.status, formatDateTime(new Date(row.updated_at)));
-            }
+            db.exec(`
+                INSERT INTO gate_state (id, status, updated_at)
+                SELECT id, status, datetime(updated_at / 1000, 'unixepoch', 'localtime')
+                FROM gate_state_old_int
+            `);
             db.exec('DROP TABLE gate_state_old_int');
         }
     });
@@ -118,6 +116,6 @@ db.exec(`
     );
 `);
 
-db.prepare('INSERT OR IGNORE INTO gate_state (id, status, updated_at) VALUES (1, ?, ?)').run('closed', formatDateTime());
+db.prepare("INSERT OR IGNORE INTO gate_state (id, status, updated_at) VALUES (1, 'closed', datetime('now', 'localtime'))").run();
 
 module.exports = db;

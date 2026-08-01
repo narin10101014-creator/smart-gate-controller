@@ -1,7 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 const { parseDurationMs } = require('../utils/duration');
-const { formatDateTime, parseDateTime } = require('../utils/datetime');
+const { parseDateTime } = require('../utils/datetime');
 const db = require('./db');
 
 function requireEnv(name) {
@@ -18,27 +18,30 @@ const users = [
 ];
 
 const SESSION_TTL_MS = parseDurationMs(process.env.SESSION_TTL || '24h', 'SESSION_TTL');
+const SESSION_TTL_SECONDS = Math.floor(SESSION_TTL_MS / 1000);
 
-const insertSession = db.prepare(
-    'INSERT INTO sessions (token, user_id, username, role, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+// 'now'/'localtime' and the expiry comparison are all computed by SQLite
+// itself rather than formatted in JS, so there's a single source of truth
+// for "what time is it" and no risk of the JS/SQL formats drifting apart.
+const insertSession = db.prepare(`
+    INSERT INTO sessions (token, user_id, username, role, expires_at, created_at)
+    VALUES (?, ?, ?, ?, datetime('now', 'localtime', '+' || ? || ' seconds'), datetime('now', 'localtime'))
+`);
+const selectSessionWithValidity = db.prepare(
+    "SELECT *, (expires_at > datetime('now', 'localtime')) AS valid FROM sessions WHERE token = ?"
 );
-const selectSession = db.prepare('SELECT * FROM sessions WHERE token = ?');
 const deleteSessionStmt = db.prepare('DELETE FROM sessions WHERE token = ?');
 
 function createSession(user) {
     const token = uuidv4();
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
-    insertSession.run(token, user.id, user.username, user.role, formatDateTime(expiresAt), formatDateTime(now));
+    insertSession.run(token, user.id, user.username, user.role, SESSION_TTL_SECONDS);
     return token;
 }
 
 function getSession(token) {
-    const row = selectSession.get(token);
+    const row = selectSessionWithValidity.get(token);
     if (!row) return null;
-    // 'YYYY-MM-DD HH:MM:SS' sorts lexicographically the same as chronologically,
-    // as long as every value uses this same zero-padded format.
-    if (formatDateTime() > row.expires_at) {
+    if (!row.valid) {
         deleteSessionStmt.run(token);
         return null;
     }
@@ -49,11 +52,13 @@ function deleteSession(token) {
     deleteSessionStmt.run(token);
 }
 
-const insertLog = db.prepare('INSERT INTO logs (id, timestamp, type, user, message) VALUES (?, ?, ?, ?, ?)');
+const insertLog = db.prepare(
+    "INSERT INTO logs (id, timestamp, type, user, message) VALUES (?, datetime('now', 'localtime'), ?, ?, ?)"
+);
 const selectLogs = db.prepare('SELECT * FROM logs ORDER BY timestamp DESC LIMIT 100');
 
 function addLog(entry) {
-    insertLog.run(uuidv4(), formatDateTime(), entry.type, entry.user, entry.message);
+    insertLog.run(uuidv4(), entry.type, entry.user, entry.message);
 }
 
 function getLogs() {
@@ -69,7 +74,9 @@ function getLogs() {
 }
 
 const selectGateState = db.prepare('SELECT status, updated_at FROM gate_state WHERE id = 1');
-const updateGateState = db.prepare('UPDATE gate_state SET status = ?, updated_at = ? WHERE id = 1');
+const updateGateState = db.prepare(
+    "UPDATE gate_state SET status = ?, updated_at = datetime('now', 'localtime') WHERE id = 1"
+);
 
 function getGateState() {
     const row = selectGateState.get();
@@ -77,7 +84,7 @@ function getGateState() {
 }
 
 function setGateState(status) {
-    updateGateState.run(status, formatDateTime());
+    updateGateState.run(status);
 }
 
 let pendingCommand = null; // { action: 'open' | 'close', requestedAt } | null
