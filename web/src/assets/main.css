@@ -101,6 +101,35 @@ label {
   margin-bottom: var(--spacing);
 }
 
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  padding-right: 44px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.password-toggle:hover {
+  color: var(--color-text);
+}
+
 .error-text {
   color: var(--color-danger);
   font-size: 14px;
