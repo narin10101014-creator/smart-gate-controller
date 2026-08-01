@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 const { parseDurationMs } = require('../utils/duration');
+const { formatDateTime, parseDateTime } = require('../utils/datetime');
 const db = require('./db');
 
 function requireEnv(name) {
@@ -26,15 +27,18 @@ const deleteSessionStmt = db.prepare('DELETE FROM sessions WHERE token = ?');
 
 function createSession(user) {
     const token = uuidv4();
-    const now = Date.now();
-    insertSession.run(token, user.id, user.username, user.role, now + SESSION_TTL_MS, now);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
+    insertSession.run(token, user.id, user.username, user.role, formatDateTime(expiresAt), formatDateTime(now));
     return token;
 }
 
 function getSession(token) {
     const row = selectSession.get(token);
     if (!row) return null;
-    if (Date.now() > row.expires_at) {
+    // 'YYYY-MM-DD HH:MM:SS' sorts lexicographically the same as chronologically,
+    // as long as every value uses this same zero-padded format.
+    if (formatDateTime() > row.expires_at) {
         deleteSessionStmt.run(token);
         return null;
     }
@@ -49,13 +53,15 @@ const insertLog = db.prepare('INSERT INTO logs (id, timestamp, type, user, messa
 const selectLogs = db.prepare('SELECT * FROM logs ORDER BY timestamp DESC LIMIT 100');
 
 function addLog(entry) {
-    insertLog.run(uuidv4(), Date.now(), entry.type, entry.user, entry.message);
+    insertLog.run(uuidv4(), formatDateTime(), entry.type, entry.user, entry.message);
 }
 
 function getLogs() {
-    return selectLogs.all().map(row => ({
+    return selectLogs.all().map((row) => ({
         id: row.id,
-        timestamp: new Date(row.timestamp).toISOString(),
+        // Converted back to ISO here so the REST API response shape/format is
+        // unchanged - only the stored representation is now human-readable.
+        timestamp: parseDateTime(row.timestamp).toISOString(),
         type: row.type,
         user: row.user,
         message: row.message,
@@ -67,11 +73,11 @@ const updateGateState = db.prepare('UPDATE gate_state SET status = ?, updated_at
 
 function getGateState() {
     const row = selectGateState.get();
-    return { status: row.status, updatedAt: new Date(row.updated_at).toISOString() };
+    return { status: row.status, updatedAt: parseDateTime(row.updated_at).toISOString() };
 }
 
 function setGateState(status) {
-    updateGateState.run(status, Date.now());
+    updateGateState.run(status, formatDateTime());
 }
 
 let pendingCommand = null; // { action: 'open' | 'close', requestedAt } | null
