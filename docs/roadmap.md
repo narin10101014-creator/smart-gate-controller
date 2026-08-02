@@ -113,7 +113,6 @@ safety notes exist specifically to address issues identified during design revie
 - Verified production build (`vite build`)
 
 **Remaining work:**
-- Production hosting/deployment (currently run via `vite dev`/`vite preview` only)
 - Broader manual testing across browsers/devices beyond initial verification
 
 **Dependencies:** Phase 1 backend reachable from the browser.
